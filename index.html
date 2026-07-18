@@ -1098,6 +1098,48 @@ table.admin-table tr:hover td{ background:var(--bg-2); color:var(--text-hi); }
   </div>
 </div>
 
+<div class="modal-backdrop hidden" id="username-modal-backdrop">
+  <div class="modal">
+    <div class="modal-head"><h3>เปลี่ยนชื่อผู้ใช้ (Username)</h3><button onclick="closeModal('username-modal-backdrop')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-msg" id="username-edit-msg"></div>
+      <div class="form-control">
+        <input type="text" id="edit-new-username" placeholder=" ">
+        <label><span>Username ใหม่</span></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('username-modal-backdrop')">ยกเลิก</button>
+      <button class="btn" onclick="changeUsername()">บันทึก Username ใหม่</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="password-modal-backdrop">
+  <div class="modal">
+    <div class="modal-head"><h3>เปลี่ยนรหัสผ่าน</h3><button onclick="closeModal('password-modal-backdrop')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-msg" id="password-edit-msg"></div>
+      <div class="form-control">
+        <input type="password" id="edit-current-password" placeholder=" " autocomplete="current-password">
+        <label><span>รหัสผ่านเดิม</span></label>
+      </div>
+      <div class="form-control">
+        <input type="password" id="edit-new-password" placeholder=" " minlength="4" autocomplete="new-password">
+        <label><span>รหัสผ่านใหม่</span></label>
+      </div>
+      <div class="form-control">
+        <input type="password" id="edit-new-password2" placeholder=" " minlength="4" autocomplete="new-password">
+        <label><span>ยืนยันรหัสผ่านใหม่</span></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('password-modal-backdrop')">ยกเลิก</button>
+      <button class="btn" onclick="changePassword()">บันทึกรหัสผ่านใหม่</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop hidden" id="confirm-modal-backdrop">
   <div class="modal" style="max-width:380px;">
     <div class="modal-body" style="text-align:center; padding-top:32px;">
@@ -1692,32 +1734,42 @@ function openProfileModal(){
 
     <hr style="border:none; border-top:1px solid var(--line); margin-bottom:20px;">
 
-    <div class="form-msg" id="account-edit-msg"></div>
-
-    <h4 style="font-size:13px; margin-bottom:12px; color:var(--text-mid);">เปลี่ยนชื่อผู้ใช้ (Username)</h4>
-    <div class="form-control">
-      <input type="text" id="edit-new-username" placeholder=" ">
-      <label><span>Username ใหม่</span></label>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="openUsernameModal()">เปลี่ยนชื่อผู้ใช้ (Username)</button>
+      <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="openPasswordModal()">เปลี่ยนรหัสผ่าน</button>
     </div>
-    <button class="btn btn-ghost btn-sm" style="margin-bottom:24px;" onclick="changeUsername()">บันทึก Username ใหม่</button>
-
-    <h4 style="font-size:13px; margin-bottom:12px; color:var(--text-mid);">เปลี่ยนรหัสผ่าน</h4>
-    <div class="form-control">
-      <input type="password" id="edit-new-password" placeholder=" " minlength="4">
-      <label><span>รหัสผ่านใหม่</span></label>
-    </div>
-    <div class="form-control">
-      <input type="password" id="edit-new-password2" placeholder=" " minlength="4">
-      <label><span>ยืนยันรหัสผ่านใหม่</span></label>
-    </div>
-    <button class="btn btn-sm" onclick="changePassword()">บันทึกรหัสผ่านใหม่</button>
   `;
   document.getElementById('profile-modal-backdrop').classList.remove('hidden');
   document.getElementById('user-menu').classList.remove('open');
 }
 
-function showAccountMsg(text, type){
-  const el = document.getElementById('account-edit-msg');
+/* ---------- username edit modal ---------- */
+function openUsernameModal(){
+  document.getElementById('edit-new-username').value = '';
+  const msg = document.getElementById('username-edit-msg');
+  msg.className = 'form-msg';
+  document.getElementById('username-modal-backdrop').classList.remove('hidden');
+}
+
+function showUsernameMsg(text, type){
+  const el = document.getElementById('username-edit-msg');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'form-msg show ' + type;
+}
+
+/* ---------- password edit modal ---------- */
+function openPasswordModal(){
+  document.getElementById('edit-current-password').value = '';
+  document.getElementById('edit-new-password').value = '';
+  document.getElementById('edit-new-password2').value = '';
+  const msg = document.getElementById('password-edit-msg');
+  msg.className = 'form-msg';
+  document.getElementById('password-modal-backdrop').classList.remove('hidden');
+}
+
+function showPasswordMsg(text, type){
+  const el = document.getElementById('password-edit-msg');
   if (!el) return;
   el.textContent = text;
   el.className = 'form-msg show ' + type;
@@ -1728,11 +1780,11 @@ async function changeUsername(){
   const newUsername = document.getElementById('edit-new-username').value.trim();
   if (!newUsername) return;
   if (!/^[a-zA-Z0-9_.]{3,20}$/.test(newUsername)) {
-    showAccountMsg('Username ต้องเป็นตัวอักษร/ตัวเลข 3-20 ตัว', 'error');
+    showUsernameMsg('Username ต้องเป็นตัวอักษร/ตัวเลข 3-20 ตัว', 'error');
     return;
   }
   if (newUsername.toLowerCase() === OWNER_USERNAME && getSession().role !== 'owner') {
-    showAccountMsg('ชื่อผู้ใช้นี้ถูกสงวนไว้ กรุณาตั้งชื่ออื่น', 'error');
+    showUsernameMsg('ชื่อผู้ใช้นี้ถูกสงวนไว้ กรุณาตั้งชื่ออื่น', 'error');
     return;
   }
 
@@ -1741,7 +1793,7 @@ async function changeUsername(){
   // 1. เปลี่ยนอีเมล (username) ในระบบ Auth ก่อน
   const { error: authError } = await sb.auth.updateUser({ email: newEmail });
   if (authError) {
-    showAccountMsg('เปลี่ยน Username ไม่สำเร็จ: ' + authError.message, 'error');
+    showUsernameMsg('เปลี่ยน Username ไม่สำเร็จ: ' + authError.message, 'error');
     return;
   }
 
@@ -1753,7 +1805,7 @@ async function changeUsername(){
     .eq('id', session.uid);
 
   if (profileError) {
-    showAccountMsg('เปลี่ยน Username ไม่สำเร็จ: ' + profileError.message, 'error');
+    showUsernameMsg('เปลี่ยน Username ไม่สำเร็จ: ' + profileError.message, 'error');
     return;
   }
 
@@ -1761,35 +1813,58 @@ async function changeUsername(){
   setSession(session);
   document.getElementById('user-name').textContent = `${session.firstname} ${session.lastname}`;
   addLog(newUsername, 'เปลี่ยนชื่อผู้ใช้ (Username)');
-  showAccountMsg('เปลี่ยน Username สำเร็จ! ใช้ชื่อใหม่นี้ในการเข้าสู่ระบบครั้งถัดไป', 'success');
-  document.getElementById('edit-new-username').value = '';
+  showUsernameMsg('เปลี่ยน Username สำเร็จ! ใช้ชื่อใหม่นี้ในการเข้าสู่ระบบครั้งถัดไป', 'success');
+  toast('เปลี่ยน Username สำเร็จ');
+  setTimeout(() => closeModal('username-modal-backdrop'), 1200);
 }
 
-/* ---------- change password ---------- */
+/* ---------- change password (ยืนยันรหัสเดิมก่อนเสมอ) ---------- */
 async function changePassword(){
+  const currentPassword = document.getElementById('edit-current-password').value;
   const p1 = document.getElementById('edit-new-password').value;
   const p2 = document.getElementById('edit-new-password2').value;
-  if (!p1 || !p2) return;
+
+  if (!currentPassword) {
+    showPasswordMsg('กรุณากรอกรหัสผ่านเดิมเพื่อยืนยันตัวตน', 'error');
+    return;
+  }
+  if (!p1 || !p2) {
+    showPasswordMsg('กรุณากรอกรหัสผ่านใหม่ให้ครบทั้งสองช่อง', 'error');
+    return;
+  }
   if (p1 !== p2) {
-    showAccountMsg('รหัสผ่านทั้งสองช่องไม่ตรงกัน', 'error');
+    showPasswordMsg('รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน', 'error');
     return;
   }
   if (p1.length < 4) {
-    showAccountMsg('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร', 'error');
+    showPasswordMsg('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร', 'error');
+    return;
+  }
+
+  const session = getSession();
+  showPasswordMsg('กำลังตรวจสอบรหัสผ่านเดิม...', 'success');
+
+  // ยืนยันรหัสผ่านเดิมก่อน โดยลอง sign in ซ้ำด้วย email + รหัสผ่านเดิมที่กรอกมา
+  const { error: verifyError } = await sb.auth.signInWithPassword({
+    email: usernameToEmail(session.username),
+    password: currentPassword
+  });
+
+  if (verifyError) {
+    showPasswordMsg('รหัสผ่านเดิมไม่ถูกต้อง', 'error');
     return;
   }
 
   const { error } = await sb.auth.updateUser({ password: p1 });
   if (error) {
-    showAccountMsg('เปลี่ยนรหัสผ่านไม่สำเร็จ: ' + error.message, 'error');
+    showPasswordMsg('เปลี่ยนรหัสผ่านไม่สำเร็จ: ' + error.message, 'error');
     return;
   }
 
-  const session = getSession();
   addLog(session.username, 'เปลี่ยนรหัสผ่าน');
-  showAccountMsg('เปลี่ยนรหัสผ่านสำเร็จ!', 'success');
-  document.getElementById('edit-new-password').value = '';
-  document.getElementById('edit-new-password2').value = '';
+  showPasswordMsg('เปลี่ยนรหัสผ่านสำเร็จ!', 'success');
+  toast('เปลี่ยนรหัสผ่านสำเร็จ');
+  setTimeout(() => closeModal('password-modal-backdrop'), 1200);
 }
 
 /* ============================================================
