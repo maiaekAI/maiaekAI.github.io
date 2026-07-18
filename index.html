@@ -1113,7 +1113,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // username ภายในจะถูกแปลงเป็น "username@mkctools.local" เพื่อใช้กับ Supabase Auth
 // (Supabase Auth ต้องการอีเมลเสมอ แต่ผู้ใช้จะเห็นแค่ช่อง Username เท่านั้น)
-const EMAIL_DOMAIN = '@mkctools.local';
+const EMAIL_DOMAIN = '@mkc-tools.com';
 function usernameToEmail(u){ return u.trim().toLowerCase() + EMAIL_DOMAIN; }
 
 const OWNER_USERNAME = 'maiaek';
