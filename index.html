@@ -553,7 +553,7 @@ input:checked + .slider .moon-dot{ opacity:1; }
   border:1px solid var(--line);
   border-radius:var(--radius-md);
   overflow:hidden;
-  transition:border-color .2s, transform .15s;
+  transition:border-color .2s, transform .15s, opacity .15s, box-shadow .15s;
 }
 .widget:hover{ border-color:color-mix(in srgb, var(--accent) 40%, var(--line)); }
 .widget-head{
@@ -577,6 +577,18 @@ input:checked + .slider .moon-dot{ opacity:1; }
 .widget-head-actions button:hover{ background:var(--bg-3); color:var(--danger); }
 .widget-head-actions button svg{ width:13px; height:13px; }
 .widget-body{ padding:12px 14px 14px; }
+
+/* drag & drop states */
+.widget-drag-handle{
+  cursor:grab; color:var(--text-lo); display:flex; align-items:center; justify-content:center;
+  width:20px; height:24px; flex-shrink:0; touch-action:none;
+}
+.widget-drag-handle:hover{ color:var(--accent); }
+.widget-drag-handle svg{ width:14px; height:14px; }
+.widget.dragging{ opacity:0.35; }
+.widget.drag-over-before{ box-shadow: -3px 0 0 0 var(--accent), 0 0 0 1px var(--accent) inset; }
+.widget.drag-over-before{ box-shadow:none; border-top:3px solid var(--accent); margin-top:-3px; }
+.widget.drag-over-after{ border-bottom:3px solid var(--accent); margin-bottom:-3px; }
 
 .link-list{ display:flex; flex-direction:column; gap:1px; }
 .link-item{
@@ -1142,6 +1154,40 @@ table.admin-table tr:hover td{ background:var(--bg-2); color:var(--text-hi); }
   </div>
 </div>
 
+<div class="modal-backdrop hidden" id="position-modal-backdrop">
+  <div class="modal">
+    <div class="modal-head"><h3>แก้ไขตำแหน่ง</h3><button onclick="closeModal('position-modal-backdrop')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-msg" id="position-edit-msg"></div>
+      <div class="form-control">
+        <input type="text" id="edit-position-value" placeholder=" ">
+        <label><span>ตำแหน่งใหม่</span></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('position-modal-backdrop')">ยกเลิก</button>
+      <button class="btn" onclick="savePositionEdit()">บันทึกตำแหน่งใหม่</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="department-modal-backdrop">
+  <div class="modal">
+    <div class="modal-head"><h3>แก้ไขแผนก</h3><button onclick="closeModal('department-modal-backdrop')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-msg" id="department-edit-msg"></div>
+      <div class="form-control">
+        <input type="text" id="edit-department-value" placeholder=" ">
+        <label><span>แผนกใหม่</span></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('department-modal-backdrop')">ยกเลิก</button>
+      <button class="btn" onclick="saveDepartmentEdit()">บันทึกแผนกใหม่</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop hidden" id="password-modal-backdrop">
   <div class="modal">
     <div class="modal-head"><h3>เปลี่ยนรหัสผ่าน</h3><button onclick="closeModal('password-modal-backdrop')">✕</button></div>
@@ -1572,6 +1618,78 @@ function renderCurrentPage(){
     </div>
   `;
   startClocks();
+  attachDragEvents();
+}
+
+/* ---------- drag & drop reorder ---------- */
+let draggedWidgetId = null;
+
+function attachDragEvents(){
+  const grid = document.getElementById('widget-grid');
+  grid.querySelectorAll('.widget').forEach(el => {
+    el.addEventListener('dragstart', onWidgetDragStart);
+    el.addEventListener('dragover', onWidgetDragOver);
+    el.addEventListener('dragleave', onWidgetDragLeave);
+    el.addEventListener('drop', onWidgetDrop);
+    el.addEventListener('dragend', onWidgetDragEnd);
+
+    const handle = el.querySelector('.widget-drag-handle');
+    if (handle) {
+      handle.addEventListener('mousedown', () => el.setAttribute('draggable', 'true'));
+      handle.addEventListener('touchstart', () => el.setAttribute('draggable', 'true'), { passive: true });
+    }
+    el.addEventListener('mouseup', () => el.setAttribute('draggable', 'false'));
+  });
+}
+
+function onWidgetDragStart(e){
+  draggedWidgetId = this.dataset.widgetId;
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', draggedWidgetId); } catch(err){}
+}
+
+function onWidgetDragOver(e){
+  e.preventDefault();
+  if (this.dataset.widgetId === draggedWidgetId) return;
+  e.dataTransfer.dropEffect = 'move';
+  const rect = this.getBoundingClientRect();
+  const before = (e.clientY - rect.top) < rect.height / 2;
+  this.classList.toggle('drag-over-before', before);
+  this.classList.toggle('drag-over-after', !before);
+}
+
+function onWidgetDragLeave(){
+  this.classList.remove('drag-over-before', 'drag-over-after');
+}
+
+function onWidgetDrop(e){
+  e.preventDefault();
+  const targetId = this.dataset.widgetId;
+  this.classList.remove('drag-over-before', 'drag-over-after');
+  if (!draggedWidgetId || draggedWidgetId === targetId) return;
+
+  const rect = this.getBoundingClientRect();
+  const before = (e.clientY - rect.top) < rect.height / 2;
+
+  const pages = loadPages();
+  const page = pages.find(p => p.id === currentPageId);
+  const fromIdx = page.widgets.findIndex(w => w.id === draggedWidgetId);
+  if (fromIdx === -1) return;
+  const [moved] = page.widgets.splice(fromIdx, 1);
+  let toIdx = page.widgets.findIndex(w => w.id === targetId);
+  if (toIdx === -1) toIdx = page.widgets.length;
+  page.widgets.splice(before ? toIdx : toIdx + 1, 0, moved);
+  savePages(pages);
+  renderCurrentPage();
+  toast('จัดเรียงวิดเจ็ตใหม่แล้ว');
+}
+
+function onWidgetDragEnd(){
+  this.classList.remove('dragging');
+  this.setAttribute('draggable', 'false');
+  document.querySelectorAll('.widget').forEach(w => w.classList.remove('drag-over-before', 'drag-over-after'));
+  draggedWidgetId = null;
 }
 
 const WIDGET_ICONS = {
@@ -1616,9 +1734,12 @@ function renderWidget(w){
   }
 
   return `
-    <div class="widget" data-widget-id="${w.id}">
+    <div class="widget" data-widget-id="${w.id}" draggable="false">
       <div class="widget-head">
         <div class="widget-head-left">
+          <div class="widget-drag-handle" title="ลากเพื่อจัดเรียงใหม่">
+            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg>
+          </div>
           <div class="w-icon">${WIDGET_ICONS[w.type] || ''}</div>
           <h3>${escapeHtml(w.title)}</h3>
         </div>
@@ -1760,12 +1881,22 @@ function handleGlobalSearch(e){
 /* ---------- profile modal ---------- */
 function openProfileModal(){
   const s = getSession();
+  const editBtn = (fn) => `
+        <button onclick="${fn}" title="แก้ไข" style="background:none;border:none;color:var(--text-lo);cursor:pointer;width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="m18.5 2.5 3 3L12 15l-4 1 1-4Z"/></svg>
+        </button>`;
   document.getElementById('profile-modal-body').innerHTML = `
     <div style="display:flex; flex-direction:column; gap:14px; font-size:13.5px; margin-bottom:24px;">
       <div><div style="color:var(--text-lo); font-size:11px; text-transform:uppercase;">ชื่อ-นามสกุล</div><div>${escapeHtml(s.firstname)} ${escapeHtml(s.lastname)}</div></div>
       <div><div style="color:var(--text-lo); font-size:11px; text-transform:uppercase;">Username ปัจจุบัน</div><div>${escapeHtml(s.username)}</div></div>
-      <div><div style="color:var(--text-lo); font-size:11px; text-transform:uppercase;">ตำแหน่ง</div><div>${escapeHtml(s.position||'-')}</div></div>
-      <div><div style="color:var(--text-lo); font-size:11px; text-transform:uppercase;">แผนก</div><div>${escapeHtml(s.department||'-')}</div></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <div><div style="color:var(--text-lo); font-size:11px; text-transform:uppercase;">ตำแหน่ง</div><div>${escapeHtml(s.position||'-')}</div></div>
+        ${s.role === 'owner' ? editBtn('openPositionModal()') : ''}
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <div><div style="color:var(--text-lo); font-size:11px; text-transform:uppercase;">แผนก</div><div>${escapeHtml(s.department||'-')}</div></div>
+        ${s.role === 'owner' ? editBtn('openDepartmentModal()') : ''}
+      </div>
       <div><div style="color:var(--text-lo); font-size:11px; text-transform:uppercase;">สิทธิ์การใช้งาน</div><div><span class="badge ${s.role==='owner'?'owner':'user'}">${s.role==='owner'?'OWNER / ADMIN':'USER'}</span></div></div>
     </div>
 
@@ -1778,6 +1909,80 @@ function openProfileModal(){
   `;
   document.getElementById('profile-modal-backdrop').classList.remove('hidden');
   document.getElementById('user-menu').classList.remove('open');
+}
+
+/* ---------- position / department edit (owner only) ---------- */
+function openPositionModal(){
+  const s = getSession();
+  if (s.role !== 'owner') return;
+  document.getElementById('edit-position-value').value = s.position || '';
+  const msg = document.getElementById('position-edit-msg');
+  msg.className = 'form-msg';
+  document.getElementById('position-modal-backdrop').classList.remove('hidden');
+}
+function showPositionMsg(text, type){
+  const el = document.getElementById('position-edit-msg');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'form-msg show ' + type;
+}
+async function savePositionEdit(){
+  const s = getSession();
+  if (s.role !== 'owner') return;
+  const value = document.getElementById('edit-position-value').value.trim();
+  if (!value) {
+    showPositionMsg('กรุณากรอกตำแหน่ง', 'error');
+    return;
+  }
+  const { error } = await sb.from('profiles').update({ position: value }).eq('id', s.uid);
+  if (error) {
+    showPositionMsg('บันทึกไม่สำเร็จ: ' + error.message, 'error');
+    return;
+  }
+  s.position = value;
+  setSession(s);
+  addLog(s.username, 'เปลี่ยนตำแหน่งเป็น "' + value + '"');
+  showPositionMsg('บันทึกตำแหน่งใหม่สำเร็จ!', 'success');
+  toast('อัปเดตตำแหน่งแล้ว');
+  openProfileModal();
+  setTimeout(() => closeModal('position-modal-backdrop'), 1000);
+}
+
+function openDepartmentModal(){
+  const s = getSession();
+  if (s.role !== 'owner') return;
+  document.getElementById('edit-department-value').value = s.department || '';
+  const msg = document.getElementById('department-edit-msg');
+  msg.className = 'form-msg';
+  document.getElementById('department-modal-backdrop').classList.remove('hidden');
+}
+function showDepartmentMsg(text, type){
+  const el = document.getElementById('department-edit-msg');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'form-msg show ' + type;
+}
+async function saveDepartmentEdit(){
+  const s = getSession();
+  if (s.role !== 'owner') return;
+  const value = document.getElementById('edit-department-value').value.trim();
+  if (!value) {
+    showDepartmentMsg('กรุณากรอกแผนก', 'error');
+    return;
+  }
+  const { error } = await sb.from('profiles').update({ department: value }).eq('id', s.uid);
+  if (error) {
+    showDepartmentMsg('บันทึกไม่สำเร็จ: ' + error.message, 'error');
+    return;
+  }
+  s.department = value;
+  setSession(s);
+  document.getElementById('user-role').textContent = s.role === 'owner' ? 'OWNER' : s.department || 'USER';
+  addLog(s.username, 'เปลี่ยนแผนกเป็น "' + value + '"');
+  showDepartmentMsg('บันทึกแผนกใหม่สำเร็จ!', 'success');
+  toast('อัปเดตแผนกแล้ว');
+  openProfileModal();
+  setTimeout(() => closeModal('department-modal-backdrop'), 1000);
 }
 
 /* ---------- username edit modal ---------- */
