@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Security Headers สำหรับ Static Site -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://www.google.com; connect-src 'self' https://nuiqxiiomcepmsvcspcz.supabase.co;">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
 <title>MKC TOOLS — Workspace Hub</title>
 <style>
 /* ============================================================
@@ -704,9 +708,8 @@ input:checked + .slider .moon-dot{ opacity:1; }
 .widget-drag-handle:hover{ color:var(--accent); }
 .widget-drag-handle svg{ width:14px; height:14px; }
 .widget.dragging{ opacity:0.35; }
-.widget.drag-over-before{ box-shadow: -3px 0 0 0 var(--accent), 0 0 0 1px var(--accent) inset; }
-.widget.drag-over-before{ box-shadow:none; border-top:3px solid var(--accent); margin-top:-3px; }
-.widget.drag-over-after{ border-bottom:3px solid var(--accent); margin-bottom:-3px; }
+.widget.drag-over-before { box-shadow: 0 -4px 0 0 var(--accent) !important; border: none; margin: 0; }
+.widget.drag-over-after { box-shadow: 0 4px 0 0 var(--accent) !important; border: none; margin: 0; }
 
 .link-list{ display:flex; flex-direction:column; gap:1px; }
 .link-item{
@@ -1861,21 +1864,21 @@ function attachDragEvents(){
   });
 }
 
-function onWidgetDragStart(e){
-  draggedWidgetId = this.dataset.widgetId;
-  this.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  try { e.dataTransfer.setData('text/plain', draggedWidgetId); } catch(err){}
-}
-
 function onWidgetDragOver(e){
   e.preventDefault();
   if (this.dataset.widgetId === draggedWidgetId) return;
   e.dataTransfer.dropEffect = 'move';
-  const rect = this.getBoundingClientRect();
-  const before = (e.clientY - rect.top) < rect.height / 2;
-  this.classList.toggle('drag-over-before', before);
-  this.classList.toggle('drag-over-after', !before);
+  
+  if (!this._dragTicking) {
+    window.requestAnimationFrame(() => {
+      const rect = this.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      this.classList.toggle('drag-over-before', before);
+      this.classList.toggle('drag-over-after', !before);
+      this._dragTicking = false;
+    });
+    this._dragTicking = true;
+  }
 }
 
 function onWidgetDragLeave(){
@@ -2139,6 +2142,7 @@ function attachResizeHandles(){
 
     let startX = 0, startY = 0, startColSpan = 1, startHeight = 0;
     let liveColSpan = 1, liveHeight = 0, metrics = null;
+    let ticking = false;
 
     function onPointerDown(e){
       e.preventDefault();
@@ -2160,29 +2164,35 @@ function attachResizeHandles(){
 
     function onPointerMove(e){
       e.preventDefault();
-      const p = e.touches ? e.touches[0] : e;
-      const dx = p.clientX - startX;
-      const dy = p.clientY - startY;
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const p = e.touches ? e.touches[0] : e;
+          const dx = p.clientX - startX;
+          const dy = p.clientY - startY;
 
-      const startWidthPx = startColSpan * metrics.colWidth + (startColSpan - 1) * metrics.gap;
-      const targetWidthPx = startWidthPx + dx;
-      let nextColSpan = Math.round((targetWidthPx + metrics.gap) / (metrics.colWidth + metrics.gap));
-      nextColSpan = Math.max(1, Math.min(metrics.cols === 1 ? 1 : (metrics.cols === 2 ? 2 : 3), nextColSpan));
+          const startWidthPx = startColSpan * metrics.colWidth + (startColSpan - 1) * metrics.gap;
+          const targetWidthPx = startWidthPx + dx;
+          let nextColSpan = Math.round((targetWidthPx + metrics.gap) / (metrics.colWidth + metrics.gap));
+          nextColSpan = Math.max(1, Math.min(metrics.cols === 1 ? 1 : (metrics.cols === 2 ? 2 : 3), nextColSpan));
 
-      let nextHeight = Math.round((startHeight + dy) / RESIZE_HEIGHT_STEP) * RESIZE_HEIGHT_STEP;
-      nextHeight = Math.max(RESIZE_MIN_HEIGHT, nextHeight);
+          let nextHeight = Math.round((startHeight + dy) / RESIZE_HEIGHT_STEP) * RESIZE_HEIGHT_STEP;
+          nextHeight = Math.max(RESIZE_MIN_HEIGHT, nextHeight);
 
-      const changed = (nextColSpan !== liveColSpan) || (nextHeight !== liveHeight);
-      if (!changed) return;
+          const changed = (nextColSpan !== liveColSpan) || (nextHeight !== liveHeight);
+          if (changed) {
+            liveColSpan = nextColSpan;
+            liveHeight = nextHeight;
 
-      liveColSpan = nextColSpan;
-      liveHeight = nextHeight;
-
-      animateWidgetFlip(el, () => {
-        el.dataset.colSpan = liveColSpan;
-        el.style.gridColumn = `span ${liveColSpan}`;
-        el.style.height = liveHeight + 'px';
-      });
+            animateWidgetFlip(el, () => {
+              el.dataset.colSpan = liveColSpan;
+              el.style.gridColumn = `span ${liveColSpan}`;
+              el.style.height = liveHeight + 'px';
+            });
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
     }
 
     function onPointerUp(){
